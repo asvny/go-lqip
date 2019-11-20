@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	inputFile      = flag.String("i", "./test-images/test.png", "Filepath of the input file")
+	inputFile      = flag.String("i", "/Volumes/Personal/workspace/go-lqip/test-images/test.png", "Filepath of the input file")
 	outputFileName = flag.String("o", "output.gif", "Name of the output file")
 	quality        = flag.Int("q", 5, "Quality of the placeholder image")
 	imageType      = flag.String("t", "jpeg", "Type of the base64 output image")
@@ -30,6 +30,18 @@ func main() {
 
 	fmt.Println(lqipImage.Size())
 	fmt.Println(lqipImage.AspectRatio())
+	fmt.Println(lqipImage.ColorPalette())
+
+	base64, err := lqipImage.PreviewSrc()
+	failOnErr(err)
+
+	fmt.Println(base64)
+
+	base64Enhanced, err := lqipImage.PreviewEnhancedSrc()
+	failOnErr(err)
+
+	fmt.Println()
+	fmt.Println(base64Enhanced)
 }
 
 func readImageFile(filePath string) (*os.File, error) {
