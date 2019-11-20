@@ -7,6 +7,9 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
+
+	"github.com/olekukonko/tablewriter"
 )
 
 var (
@@ -27,21 +30,38 @@ func main() {
 	failOnErr(err)
 
 	lqipImage := lqip.NewImage(imageFile)
+	height, width := lqipImage.Size()
+	aspectRatio := lqipImage.AspectRatio()
+	colorPalette := lqipImage.ColorPalette()
 
-	fmt.Println(lqipImage.Size())
-	fmt.Println(lqipImage.AspectRatio())
-	fmt.Println(lqipImage.ColorPalette())
+	colors := ""
+	for name, color := range colorPalette {
+		colors = colors + fmt.Sprintf("%s - #%d\n", name, color)
+	}
 
 	base64, err := lqipImage.PreviewSrc()
 	failOnErr(err)
 
-	fmt.Println(base64)
-
 	base64Enhanced, err := lqipImage.PreviewEnhancedSrc()
 	failOnErr(err)
 
-	fmt.Println()
-	fmt.Println(base64Enhanced)
+	data := [][]string{
+		[]string{"Height", fmt.Sprintf("%d", height)},
+		[]string{"Width", fmt.Sprintf("%d", width)},
+		[]string{"Aspect ratio", fmt.Sprintf("%f", aspectRatio)},
+		[]string{"Color Pallette", colors},
+		[]string{"Preview src", hardWrap(base64, 120)},
+		[]string{"Preview enhanced src", hardWrap(base64Enhanced, 120)},
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+
+	fmt.Println("File ::: ", *inputFile)
+
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetRowLine(true)
+	table.AppendBulk(data)
+	table.Render()
 }
 
 func readImageFile(filePath string) (*os.File, error) {
@@ -60,6 +80,24 @@ func failOnErr(err error) {
 		log.Fatal(err)
 		os.Exit(1)
 	}
+}
+
+func hardWrap(text string, colBreak int) string {
+	if colBreak < 1 {
+		return text
+	}
+
+	text = strings.TrimSpace(text)
+	wrapped := ""
+
+	var i int
+	for i = 0; len(text[i:]) > colBreak; i += colBreak {
+		wrapped += text[i:i+colBreak] + "\n"
+	}
+
+	wrapped += text[i:]
+
+	return wrapped
 }
 
 const usage = `
