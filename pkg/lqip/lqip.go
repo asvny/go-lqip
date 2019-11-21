@@ -5,88 +5,112 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/disintegration/imaging"
+	"github.com/generaltso/vibrant"
+	E "github.com/pkg/errors"
 	"image"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
-	"log"
 	"os"
-
-	"github.com/disintegration/imaging"
-	"github.com/generaltso/vibrant"
 )
 
-// Web safe color in HEX format
+// Meaningful error messages
+var (
+	ErrImageConfig  = "Cannot obtain image config from the file"
+	ErrColorPalette = "Cannot obtain color palette from the image"
+	ErrImageBase64  = "Cannot convert resized image to base64 string"
+)
+
+// Color - Web basded color format
 type Color vibrant.Color
 
+// ImageOps - List of public image functions form Image struct
 type ImageOps interface {
 	// Returns the height/width of the image
-	Size() (int, int)
+	Dimensions() (int, int)
 	// Returns the aspect ratio of the image
 	AspectRatio() float64
 	// Returns a low quality placeholder base64 string
-	PreviewSrc() string
+	PreviewSrc() (string, error)
+	// Returns a low quality placeholder base64 string
+	PreviewEnhancedSrc() (string, error)
 	// Returns the color palette of the image
-	ColorPalette() map[string]Color
-}
-
-func NewImage(imageFile *os.File) *Image {
-	return &Image{
-		file:       imageFile,
-		hasDecoded: false,
-	}
+	ColorPalette() (map[string]Color, error)
 }
 
 // Image has basic file properties of the image
 type Image struct {
-	file        *os.File
-	fileBuffer  *bytes.Buffer
-	imageFile   image.Image
-	hasDecoded  bool
-	imageConfig image.Rectangle
-	format      string
+	imagePath  string
+	imageFile  image.Image
+	hasDecoded bool
+	format     string
 }
 
-func (i *Image) Size() (int, int) {
-	if !(i.hasDecoded) {
-		i.storeImageConfig()
+// NewImage implements the ImageOps interface
+func NewImage(imagePath string) (ImageOps, error) {
+	image := &Image{
+		imagePath:  imagePath,
+		hasDecoded: false,
 	}
 
-	return i.imageConfig.Dy(), i.imageConfig.Dx()
+	err := image.storeImageConfig()
+	if err != nil {
+		return nil, E.Wrap(err, ErrImageConfig)
+	}
+
+	return image, nil
 }
 
+// Dimensions returns the height/width of the image
+func (i *Image) Dimensions() (int, int) {
+	bounds := i.imageFile.Bounds()
+	return bounds.Dy(), bounds.Dx()
+}
+
+// AspectRatio returns the aspect ratio of the image
 func (i *Image) AspectRatio() float64 {
-	if !(i.hasDecoded) {
-		i.storeImageConfig()
-	}
-
-	return toFixed(float64(i.imageConfig.Dx()) / float64(i.imageConfig.Dy()))
+	height, width := i.Dimensions()
+	return toFixed(float64(height) / float64(width))
 }
 
-// Extracts colors from the image
-func (i *Image) ColorPalette() map[string]Color {
+// ColorPalette returns the extracted colors from the image
+func (i *Image) ColorPalette() (map[string]Color, error) {
 	palette, err := vibrant.NewPalette(i.imageFile, 32)
 	if err != nil {
-		log.Fatal(err)
+		return nil, E.Wrap(err, ErrColorPalette)
 	}
 
 	colorMap := make(map[string]Color)
-
 	for name, swatch := range palette.ExtractAwesome() {
 		colorMap[name] = Color(swatch.Color)
 	}
 
-	return colorMap
+	return colorMap, nil
 }
 
+// PreviewSrc returns base64-encoded image which can be used as placeholder for small dimension preview
 func (i *Image) PreviewSrc() (string, error) {
 	base64, err := i.resizeAndBase64(3, 3)
-	return base64, err
+	return base64, E.Wrap(err, ErrImageBase64)
 }
 
+// PreviewEnhancedSrc returns base64-encoded image which can be used as placeholder for large dimension preview
 func (i *Image) PreviewEnhancedSrc() (string, error) {
 	base64, err := i.resizeAndBase64(12, 12)
-	return base64, err
+	return base64, E.Wrap(err, ErrImageBase64)
+}
+
+func (i *Image) storeImageConfig() error {
+	imageFile, format, err := readImageFile(i.imagePath)
+	if err != nil {
+		return err
+	}
+
+	i.format = format
+	i.imageFile = imageFile
+
+	return nil
 }
 
 func (i *Image) resizeAndBase64(width, height int) (string, error) {
@@ -98,19 +122,6 @@ func (i *Image) resizeAndBase64(width, height int) (string, error) {
 	}
 
 	return base64String, nil
-}
-
-func (i *Image) storeImageConfig() {
-	image, format, err := image.Decode(i.file)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	i.imageConfig = image.Bounds()
-	i.imageFile = image
-	i.format = format
-	i.hasDecoded = true
 }
 
 func toFixed(num float64) float64 {
@@ -140,4 +151,20 @@ func imageToBase64(img image.Image, format string) (string, error) {
 	htmlImage := fmt.Sprintf("data:image/%s;base64,%s", format, encodedString)
 
 	return htmlImage, nil
+}
+
+func readImageFile(filePath string) (image.Image, string, error) {
+	file, err := os.Open(filePath)
+	defer file.Close()
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	imageFile, format, err := image.Decode(file)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return imageFile, format, nil
 }

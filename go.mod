@@ -8,4 +8,5 @@ require (
 	github.com/generaltso/vibrant v0.0.0-20171030211322-563623b97aee
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/olekukonko/tablewriter v0.0.2
+	github.com/pkg/errors v0.8.1
 )
