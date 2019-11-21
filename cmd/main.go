@@ -53,11 +53,8 @@ func main() {
 		return
 	}
 
-	// TODO : remove it
 	if inputFile == "" {
 		failOnErr(errors.New("invalid input file"))
-
-		inputFile = "/Volumes/Personal/workspace/go-lqip/test-images/test.png"
 	}
 
 	lqipData, err := lqip.NewImage(inputFile)
