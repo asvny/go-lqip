@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"go-lqip/pkg/lqip"
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -19,8 +21,8 @@ var (
 )
 
 var (
-	inputFile           string
-	version, outputJSON bool
+	inputFile               string
+	showVersion, outputJSON bool
 )
 
 type ImageData struct {
@@ -39,20 +41,22 @@ func init() {
 
 	flag.StringVar(&inputFile, "i", "", "Filepath of the input file")
 	flag.BoolVar(&outputJSON, "json", false, "Output JSON file")
-	flag.BoolVar(&version, "version", false, "Show version and exit")
-	flag.BoolVar(&version, "v", false, "Show version and exit")
+	flag.BoolVar(&showVersion, "version", false, "Show version and exit")
+	flag.BoolVar(&showVersion, "v", false, "Show version and exit")
 
 	flag.Parse()
 }
 
 func main() {
-	if version {
+	if showVersion {
 		fmt.Println(Version)
 		return
 	}
 
 	// TODO : remove it
 	if inputFile == "" {
+		failOnErr(errors.New("invalid input file"))
+
 		inputFile = "/Volumes/Personal/workspace/go-lqip/test-images/test.png"
 	}
 
@@ -69,7 +73,7 @@ func main() {
 		failOnErr(err)
 
 		for name, color := range _colorPalette {
-			colorPalette[name] = fmt.Sprintf("#%s", strconv.Itoa(int(color)))
+			colorPalette[strings.ToLower(name)] = fmt.Sprintf("#%s", strconv.Itoa(int(color)))
 		}
 
 		colorPaletteChan <- colorPalette
@@ -101,8 +105,8 @@ func main() {
 	}
 
 	if outputJSON {
-		paths := strings.Split(inputFile, ".")
-		err := writeAsJSONFile(paths[0]+".json", imageData)
+		outPath := strings.Replace(inputFile, filepath.Ext(inputFile), ".json", 1)
+		err := writeAsJSONFile(outPath, imageData)
 		failOnErr(err)
 
 		return
@@ -114,7 +118,7 @@ func main() {
 func writeAsJSONFile(outputFilePath string, imgData ImageData) error {
 	json, _ := json.MarshalIndent(imgData, "", "  ")
 
-	err := ioutil.WriteFile(outputFilePath, json, os.ModePerm)
+	err := ioutil.WriteFile(outputFilePath, json, 0644)
 	if err != nil {
 		return err
 	}
